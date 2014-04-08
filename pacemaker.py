@@ -38,6 +38,12 @@ def make_cert():
     # TODO: fix parameters
     return bytearray.fromhex(data.replace('\n', ''))
 
+def make_done():
+    data = '16 03 02'
+    data += ' 00 04' # Length
+    data += ' 0e 00 00 00'
+    return bytearray.fromhex(data.replace('\n', ''))
+
 def make_heartbeat():
     data = '18 03 02'
     data += ' 00 03'    # Length
@@ -72,7 +78,10 @@ class TCPSvr(socketserver.BaseRequestHandler):
         # (2) Certificate
         self.request.sendall(make_cert())
 
-        # (3) HeartbeatRequest
+        # (3) ServerHelloDone
+        self.request.sendall(make_done())
+
+        # (4) HeartbeatRequest
         self.request.sendall(make_heartbeat())
     def expect(self, cond, what):
         if not cond:
