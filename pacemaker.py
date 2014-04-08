@@ -55,15 +55,20 @@ def hexdump(data):
 
 class TCPSvr(socketserver.BaseRequestHandler):
     def handle(self):
+        remote_addr, remote_port = self.request.getpeername()
+        print("Connection from: {}:{}".format(remote_addr, remote_port))
+
         # Read TLS record header
         hdr = self.request.recv(5)
         content_type, ver, rec_len = struct.unpack('>BHH', hdr)
-        self.expect(content_type == 22, "Handshake type")
+        if not self.expect(content_type == 22, "Handshake type"):
+            return
 
         # Read handshake
         hnd = self.request.recv(rec_len)
         hnd_type, len_high, len_low, ver = struct.unpack('<BBHH', hnd[:6])
-        self.expect(hnd_type == 1, "Client Hello")
+        if not self.expect(hnd_type == 1, "Client Hello"):
+            return
         # hnd[6:6+32] is Random
         off = 6 + 32
         sid_len, = struct.unpack('B', hnd[off:off+1])
@@ -86,6 +91,8 @@ class TCPSvr(socketserver.BaseRequestHandler):
         # (3) Buggy OpenSSL will throw 0x4000 bytes, fixed ones stay silent
         if not self.read_memory(self.request, 5):
             print("Possibly not vulnerable")
+
+        print("")
 
     def read_memory(self, sock, timeout):
         end_time = time.time() + timeout
@@ -112,6 +119,7 @@ class TCPSvr(socketserver.BaseRequestHandler):
         if not cond:
             print("Expected " + what)
             self.request.close()
+        return cond
 
 
 def serve(port):
