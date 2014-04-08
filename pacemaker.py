@@ -131,4 +131,7 @@ def serve(port):
     server.serve_forever()
 
 if __name__ == '__main__':
-    serve(int(sys.argv[1]))
+    port = 4433
+    if len(sys.argv) > 1:
+        port = int(sys.argv[1])
+    serve(port)
