@@ -9,6 +9,13 @@ except:
 import sys
 import struct
 import select, time
+from argparse import ArgumentParser
+
+parser = ArgumentParser(description='Test clients for Heartbleed (CVE-2014-0160)')
+parser.add_argument('-l', '--listen', default='',
+        help='Host to listen on (default "%(default)s")')
+parser.add_argument('-p', '--port', type=int, default=4433,
+        help='TCP port to listen on (default %(default)d)')
 
 def make_hello(sslver, cipher):
     # Record
@@ -56,7 +63,7 @@ def hexdump(data):
             ' '.join('{:02x}'.format(c) for c in line),
             ''.join(chr(c) if c >= 32 and c < 127 else '.' for c in line)))
 
-class TCPSvr(socketserver.BaseRequestHandler):
+class RequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
         remote_addr, remote_port = self.request.getpeername()
         print("Connection from: {}:{}".format(remote_addr, remote_port))
@@ -125,13 +132,19 @@ class TCPSvr(socketserver.BaseRequestHandler):
         return cond
 
 
-def serve(port):
-    addr = ('', port)
-    server = socketserver.TCPServer(addr, TCPSvr)
+class PacemakerServer(socketserver.TCPServer):
+    def __init__(self, args):
+        server_address = (args.listen, args.port)
+        self.allow_reuse_address = True
+        socketserver.TCPServer.__init__(self, server_address, RequestHandler)
+        self.args = args
+
+def serve(args):
+    print('Listening on {}:{} for {} clients'
+        .format(args.listen, args.port, args.client))
+    server = PacemakerServer(args)
     server.serve_forever()
 
 if __name__ == '__main__':
-    port = 4433
-    if len(sys.argv) > 1:
-        port = int(sys.argv[1])
-    serve(port)
+    args = parser.parse_args()
+    serve(args)
