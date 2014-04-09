@@ -69,7 +69,7 @@ class TCPSvr(socketserver.BaseRequestHandler):
 
         # Read handshake
         hnd = self.request.recv(rec_len)
-        hnd_type, len_high, len_low, ver = struct.unpack('<BBHH', hnd[:6])
+        hnd_type, len_high, len_low, ver = struct.unpack('>BBHH', hnd[:6])
         if not self.expect(hnd_type == 1, "Client Hello"):
             return
         # hnd[6:6+32] is Random
