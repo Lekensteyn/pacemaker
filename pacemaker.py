@@ -65,7 +65,7 @@ def hexdump(data):
             if zerolines >= 2:
                 continue
 
-        print("{:04x}: {:47}  {}".format(16 * i,
+        print("{:04x}: {:47}  {}".format(i,
             ' '.join('{:02x}'.format(c) for c in line),
             ''.join(chr(c) if c >= 32 and c < 127 else '.' for c in line)))
 
