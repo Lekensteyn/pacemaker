@@ -71,6 +71,7 @@ the handshake:
  - wget 1.15 (leaks memory of earlier connections)
  - curl 7.36.0
  - git 1.9.1 (tested clone / push, 54 non-NUL bytes were leaked)
+ - nginx 1.4.7 (in proxy mode, 54 non-NUL bytes were leaked)
 
 # ssltest.py
 This repository also contains a working version that targets servers. ssltest.py
