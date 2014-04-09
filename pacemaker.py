@@ -6,6 +6,7 @@ try:
     import socketserver
 except:
     import SocketServer as socketserver
+import socket
 import sys
 import struct
 import select, time
@@ -16,6 +17,9 @@ parser.add_argument('-l', '--listen', default='',
         help='Host to listen on (default "%(default)s")')
 parser.add_argument('-p', '--port', type=int, default=4433,
         help='TCP port to listen on (default %(default)d)')
+parser.add_argument('-c', '--client', default='tls',
+        choices=['tls', 'mysql'],
+        help='Target client type (default %(default)s')
 
 def make_hello(sslver, cipher):
     # Record
@@ -65,9 +69,25 @@ def hexdump(data):
 
 class RequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
+        self.args = self.server.args
         remote_addr, remote_port = self.request.getpeername()
         print("Connection from: {}:{}".format(remote_addr, remote_port))
 
+        try:
+            # Set timeout to prevent hang on clients that send nothing
+            self.request.settimeout(2)
+            prep_meth = 'prepare_' + self.args.client
+            if hasattr(self, prep_meth):
+                if getattr(self, prep_meth)(self.request) is False:
+                    print('pre-TLS stage failed, dropping connection')
+                    return
+                print('Pre-TLS stage completed, continuing with handshake')
+
+            self.do_magic()
+        except socket.timeout as e:
+            print('Timed out (unknown client type)')
+
+    def do_magic(self):
         # Read TLS record header
         hdr = self.request.recv(5)
         content_type, ver, rec_len = struct.unpack('>BHH', hdr)
@@ -131,6 +151,31 @@ class RequestHandler(socketserver.BaseRequestHandler):
             self.request.close()
         return cond
 
+
+    def prepare_mysql(self, sock):
+        # This was taken from a MariaDB client. For reference, see
+        # https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::Handshake
+        greeting = '''
+        56 00 00 00 0a 35 2e 35  2e 33 36 2d 4d 61 72 69
+        61 44 42 2d 6c 6f 67 00  04 00 00 00 3d 3b 4e 57
+        4c 54 44 35 00 ff ff 21  02 00 0f e0 15 00 00 00
+        00 00 00 00 00 00 00 7c  36 33 3f 23 2e 5e 6d 2d
+        34 5c 54 00 6d 79 73 71  6c 5f 6e 61 74 69 76 65
+        5f 70 61 73 73 77 6f 72  64 00
+        '''
+        sock.sendall(bytearray.fromhex(greeting.replace('\n', '')))
+        print("Server Greeting sent.")
+
+        len_low, len_high, seqid, caps = struct.unpack('<BHBH', sock.recv(6))
+        packet_len = (len_high << 8) | len_low
+        if not self.expect(packet_len == 32, "SSLRequest length == 32"):
+            return False
+        if not self.expect((caps & 0x800), "Client SSL support (not present)"):
+            return False
+
+        print("Skipping {} packet bytes...".format(packet_len))
+        # Skip remainder (minus 2 for caps) to prepare for SSL handshake
+        sock.recv(packet_len - 2)
 
 class PacemakerServer(socketserver.TCPServer):
     def __init__(self, args):
