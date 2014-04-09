@@ -39,6 +39,15 @@ Unfortunately, I was not able to get more useful bytes, it seem that the memory
 is cleared. The same applies to `wget`. For now I have to conclude that clients
 are not vulnerable in the same way as servers. It does open a DoS hole though.
 
+## Tested clients
+The following clients have been tested against 1.0.1f and leaked memory before
+the handshake (but with only NULs after the first 54 bytes):
+
+ - MariaDB 5.5.36
+ - wget 1.15
+ - curl 7.36.0
+ - git 1.9.1
+
 # ssltest.py
 This repository also contains a working version that targets servers. ssltest.py
 was created by Jared Stafford (<jspenguin@jspenguin.org>), all due credits are
