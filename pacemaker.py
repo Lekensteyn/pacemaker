@@ -69,6 +69,9 @@ def hexdump(data):
             ' '.join('{:02x}'.format(c) for c in line),
             ''.join(chr(c) if c >= 32 and c < 127 else '.' for c in line)))
 
+class Failure(Exception):
+    pass
+
 class RequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
         self.args = self.server.args
@@ -80,27 +83,23 @@ class RequestHandler(socketserver.BaseRequestHandler):
             self.request.settimeout(2)
             prep_meth = 'prepare_' + self.args.client
             if hasattr(self, prep_meth):
-                if getattr(self, prep_meth)(self.request) is False:
-                    print('pre-TLS stage failed, dropping connection')
-                    return
+                getattr(self, prep_meth)(self.request)
                 print('Pre-TLS stage completed, continuing with handshake')
 
             self.do_magic()
-        except socket.timeout as e:
-            print('Timed out (unknown client type)')
+        except (Failure, socket.timeout) as e:
+            print('Unable to check for vulnerability: ' + str(e))
 
     def do_magic(self):
         # Read TLS record header
         hdr = self.request.recv(5)
         content_type, ver, rec_len = struct.unpack('>BHH', hdr)
-        if not self.expect(content_type == 22, "Handshake type"):
-            return
+        self.expect(content_type == 22, 'Expected Handshake type')
 
         # Read handshake
         hnd = self.request.recv(rec_len)
         hnd_type, len_high, len_low, ver = struct.unpack('>BBHH', hnd[:6])
-        if not self.expect(hnd_type == 1, "Client Hello"):
-            return
+        self.expect(hnd_type == 1, 'Expected Client Hello')
         # hnd[6:6+32] is Random
         off = 6 + 32
         sid_len, = struct.unpack('B', hnd[off:off+1])
@@ -151,9 +150,7 @@ class RequestHandler(socketserver.BaseRequestHandler):
 
     def expect(self, cond, what):
         if not cond:
-            print("Expected " + what)
-            self.request.close()
-        return cond
+            raise Failure(what)
 
 
     def prepare_mysql(self, sock):
@@ -172,10 +169,8 @@ class RequestHandler(socketserver.BaseRequestHandler):
 
         len_low, len_high, seqid, caps = struct.unpack('<BHBH', sock.recv(6))
         packet_len = (len_high << 8) | len_low
-        if not self.expect(packet_len == 32, "SSLRequest length == 32"):
-            return False
-        if not self.expect((caps & 0x800), "Client SSL support (not present)"):
-            return False
+        self.expect(packet_len == 32, 'Expected SSLRequest length == 32')
+        self.expect((caps & 0x800), 'Missing Client SSL support')
 
         print("Skipping {} packet bytes...".format(packet_len))
         # Skip remainder (minus 2 for caps) to prepare for SSL handshake
