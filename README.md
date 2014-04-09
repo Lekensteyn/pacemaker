@@ -75,6 +75,20 @@ An example where more "interesting" memory gets leaked using
     ffe0: 34 36 2d 53 45 2f 2f 00 53 45 4e 5f 38 35 30 32  46-SE//.SEN_8502
     fff0: 30 30 5f 42 2f 2f 00 00 00 00 00 00 00 00 00     00_B//.........
 
+## Advanced usage
+Run `./pacemaker.py -h` for more options. The most important options are
+probably `-t` (`--timeout`) and `-x` (`--count`). The default timeout is 3
+seconds which should be enough for most clients to respond (unless there is a
+satellite link or something).
+
+Example to be more patient per heartbeat (5 seconds) and acquire four heartbeat
+responses:
+
+    ./pacemaker.py -t 5 -x 4
+
+In theory, the heartbeats can take twenty seconds now, but in practice you will
+get responses much faster.
+
 ## Tested clients
 The following clients have been tested against 1.0.1f and leaked memory before
 the handshake:
@@ -84,6 +98,11 @@ the handshake:
  - curl 7.36.0
  - git 1.9.1 (tested clone / push, leaks not much)
  - nginx 1.4.7 (in proxy mode, leaks memory of previous requests)
+ - links 2.8 (leaks contents of previous visits!)
+
+links is a great example that demonstrates the effect of this bug on clients. It
+is a text-based browser that leaks details including headers (cookies,
+authorization tokens) and page contents.
 
 # ssltest.py
 This repository also contains a working version that targets servers. ssltest.py
