@@ -19,7 +19,9 @@ parser.add_argument('-p', '--port', type=int, default=4433,
         help='TCP port to listen on (default %(default)d)')
 parser.add_argument('-c', '--client', default='tls',
         choices=['tls', 'mysql'],
-        help='Target client type (default %(default)s')
+        help='Target client type (default %(default)s)')
+parser.add_argument('-t', '--timeout', type=int, default=3,
+        help='Timeout in seconds to wait for a Heartbeat (default %(default)d)')
 
 def make_hello(sslver, cipher):
     # Record
@@ -119,7 +121,7 @@ class RequestHandler(socketserver.BaseRequestHandler):
         self.request.sendall(make_heartbeat(sslver))
 
         # (3) Buggy OpenSSL will throw 0x4000 bytes, fixed ones stay silent
-        if not self.read_memory(self.request, 5):
+        if not self.read_memory(self.request, self.args.timeout):
             print("Possibly not vulnerable")
 
         print("")
