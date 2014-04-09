@@ -24,6 +24,8 @@ parser.add_argument('-t', '--timeout', type=int, default=3,
         help='Timeout in seconds to wait for a Heartbeat (default %(default)d)')
 parser.add_argument('--skip-server', default=False, action='store_true',
         help='Skip ServerHello, immediately write Heartbeat request')
+parser.add_argument('-x', '--count', type=int, default=1,
+        help='Number of Hearbeats requests to be sent (default %(default)d)')
 
 def make_hello(sslver, cipher):
     # Record
@@ -92,7 +94,8 @@ class RequestHandler(socketserver.BaseRequestHandler):
             if not self.args.skip_server:
                 self.do_serverhello()
 
-            self.do_evil()
+            for i in range(0, self.args.count):
+                self.do_evil()
         except (Failure, socket.timeout) as e:
             print('Unable to check for vulnerability: ' + str(e))
 
