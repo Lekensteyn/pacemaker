@@ -1,5 +1,5 @@
 # Pacemaker
-Attempts to abuse OpenSSL *clients* that are vulnerable to [Heartblead][0]
+Attempts to abuse OpenSSL *clients* that are vulnerable to [Heartbleed][0]
 ([CVE-2014-0160][1]). Compatible with Python 2 and 3.
 
 ## Am I vulnerable?
