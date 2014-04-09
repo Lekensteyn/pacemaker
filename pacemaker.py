@@ -142,7 +142,9 @@ class RequestHandler(socketserver.BaseRequestHandler):
             wanted_bytes -= len(data)
             timeout = end_time - time.time()
 
-        hexdump(buffer)
+        if len(buffer) > 0:
+            print('Client returned {0} ({0:#x}) bytes'.format(len(buffer)))
+            hexdump(buffer)
         return len(buffer) > 0
 
     def expect(self, cond, what):

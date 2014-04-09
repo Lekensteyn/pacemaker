@@ -24,6 +24,7 @@ If you are not vulnerable, the server outputs something like:
 If you *are* vulnerable, you will see something like:
 
     Connection from: 127.0.0.1:40738
+    Client returned 16384 (0x4000) bytes
     0000: 18 03 03 40 00 02 40 00 2d 03 03 52 34 c6 6d 86  ...@..@.-..R4.m.
     0100: 8d e8 40 97 da ee 7e 21 c4 1d 2e 9f e9 60 5f 05  ..@...~!.....`_.
     0200: b0 ce af 7e b7 95 8c 33 42 3f d5 00 c0 30 00 00  ...~...3B?...0..
