@@ -170,6 +170,14 @@ class RequestHandler(socketserver.BaseRequestHandler):
             wanted_bytes -= len(data)
             timeout = end_time - time.time()
 
+        # Check for Alert (sent by NSS)
+        alert = bytearray.fromhex('15 ' + self.sslver + ' 00 02')
+        if len(buffer) == 7 and buffer[0:5] == alert and buffer[5] in (1, 2):
+            lvl = 'Warning' if buffer[5] == 1 else 'Fatal'
+            print('Got Alert, level=' + lvl + ', description=' + str(buffer[6]))
+            print('Not vulnerable! (Heartbeats disabled or not OpenSSL)')
+            return 7
+
         if len(buffer) > 0:
             print('Client returned {0} ({0:#x}) bytes'.format(len(buffer)))
             hexdump(buffer)
