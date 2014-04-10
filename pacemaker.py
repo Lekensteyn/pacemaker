@@ -13,6 +13,8 @@ import select, time
 from argparse import ArgumentParser
 
 parser = ArgumentParser(description='Test clients for Heartbleed (CVE-2014-0160)')
+parser.add_argument('-6', '--ipv6', action='store_true',
+        help='Enable IPv6 addresses (implied by IPv6 listen addr. such as ::)')
 parser.add_argument('-l', '--listen', default='',
         help='Host to listen on (default "%(default)s")')
 parser.add_argument('-p', '--port', type=int, default=4433,
@@ -81,7 +83,7 @@ class RequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
         self.args = self.server.args
         self.sslver = '03 01' # default to TLSv1.0
-        remote_addr, remote_port = self.request.getpeername()
+        remote_addr, remote_port = self.request.getpeername()[:2]
         print("Connection from: {}:{}".format(remote_addr, remote_port))
 
         try:
@@ -233,6 +235,8 @@ class PacemakerServer(socketserver.TCPServer):
     def __init__(self, args):
         server_address = (args.listen, args.port)
         self.allow_reuse_address = True
+        if args.ipv6 or ':' in args.listen:
+            self.address_family = socket.AF_INET6
         socketserver.TCPServer.__init__(self, server_address, RequestHandler)
         self.args = args
 
