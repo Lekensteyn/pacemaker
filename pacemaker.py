@@ -95,8 +95,15 @@ class RequestHandler(socketserver.BaseRequestHandler):
                 self.do_serverhello()
 
             for i in range(0, self.args.count):
-                self.do_evil()
-        except (Failure, socket.timeout) as e:
+                try:
+                    self.do_evil()
+                except OSError as e:
+                    if i == 0: # First heartbeat?
+                        print('Unable to send first heartbeat! ' + str(e))
+                    else:
+                        print('Unable to send more heartbeats, ' + str(e))
+                    break
+        except (Failure, OSError, socket.timeout) as e:
             print('Unable to check for vulnerability: ' + str(e))
 
         print('')
@@ -150,7 +157,13 @@ class RequestHandler(socketserver.BaseRequestHandler):
             if not rl:
                 break
 
-            data = rl[0].recv(wanted_bytes)
+            try:
+                data = rl[0].recv(wanted_bytes)
+            except OSError as e:
+                if not len(buffer):
+                    print('Did not receive heartbeat response! ' + str(e))
+                break # Connection reset?
+
             if not data: # EOF
                 break
             buffer += data
