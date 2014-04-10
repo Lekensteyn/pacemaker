@@ -112,9 +112,12 @@ class RequestHandler(socketserver.BaseRequestHandler):
     def do_serverhello(self):
         # Read TLS record header
         content_type, ver, rec_len = self.recv_s('>BHH', 'TLS record')
-        self.expect(content_type == 22, 'Expected Handshake type')
         # Session-ID length (1 byte) starts at offset 38
         self.expect(rec_len >= 39, 'Illegal handshake packet')
+        if content_type == 0x80: # SSLv2 (assume length < 256)
+            raise Failure('SSL 2.0 clients cannot be tested')
+        else:
+            self.expect(content_type == 22, 'Expected Handshake type')
 
         # Read handshake
         hnd = self.request.recv(rec_len)
