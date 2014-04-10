@@ -17,8 +17,9 @@ parser.add_argument('-l', '--listen', default='',
         help='Host to listen on (default "%(default)s")')
 parser.add_argument('-p', '--port', type=int, default=4433,
         help='TCP port to listen on (default %(default)d)')
+# Note: FTP is (Explicit FTPS). Use TLS for Implicit FTPS
 parser.add_argument('-c', '--client', default='tls',
-        choices=['tls', 'mysql'],
+        choices=['tls', 'mysql', 'ftp'],
         help='Target client type (default %(default)s)')
 parser.add_argument('-t', '--timeout', type=int, default=3,
         help='Timeout in seconds to wait for a Heartbeat (default %(default)d)')
@@ -210,6 +211,13 @@ class RequestHandler(socketserver.BaseRequestHandler):
         print("Skipping {} packet bytes...".format(packet_len))
         # Skip remainder (minus 2 for caps) to prepare for SSL handshake
         sock.recv(packet_len - 2)
+
+    def prepare_ftp(self, sock):
+        sock.sendall('220 pacemaker test\r\n'.encode('ascii'))
+        data = sock.recv(16).decode('ascii').strip()
+        self.expect(data in ('AUTH SSL', 'AUTH TLS'), \
+            'Unexpected response: ' + data)
+        sock.sendall(bytearray('234 ' + data + '\r\n', 'ascii'))
 
     def recv_s(self, struct_def, what):
         s = struct.Struct(struct_def)
