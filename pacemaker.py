@@ -159,7 +159,7 @@ class RequestHandler(socketserver.BaseRequestHandler):
 
             try:
                 data = rl[0].recv(wanted_bytes)
-            except OSError as e:
+            except socket.error as e:
                 if not len(buffer):
                     print('Did not receive heartbeat response! ' + str(e))
                 break # Connection reset?
