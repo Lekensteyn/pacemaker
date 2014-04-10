@@ -103,12 +103,12 @@ class RequestHandler(socketserver.BaseRequestHandler):
 
     def do_serverhello(self):
         # Read TLS record header
-        hdr = self.request.recv(5)
-        content_type, ver, rec_len = struct.unpack('>BHH', hdr)
+        content_type, ver, rec_len = self.recv_s('>BHH', 'TLS record')
         self.expect(content_type == 22, 'Expected Handshake type')
 
         # Read handshake
         hnd = self.request.recv(rec_len)
+        self.expect(len(hnd) == rec_len, 'Unable to read handshake')
         hnd_type, len_high, len_low, ver = struct.unpack('>BBHH', hnd[:6])
         self.expect(hnd_type == 1, 'Expected Client Hello')
         # hnd[6:6+32] is Random
@@ -177,7 +177,7 @@ class RequestHandler(socketserver.BaseRequestHandler):
         sock.sendall(bytearray.fromhex(greeting.replace('\n', '')))
         print("Server Greeting sent.")
 
-        len_low, len_high, seqid, caps = struct.unpack('<BHBH', sock.recv(6))
+        len_low, len_high, seqid, caps = self.recv_s('<BHBH', 'MySQL handshake')
         packet_len = (len_high << 8) | len_low
         self.expect(packet_len == 32, 'Expected SSLRequest length == 32')
         self.expect((caps & 0x800), 'Missing Client SSL support')
@@ -185,6 +185,13 @@ class RequestHandler(socketserver.BaseRequestHandler):
         print("Skipping {} packet bytes...".format(packet_len))
         # Skip remainder (minus 2 for caps) to prepare for SSL handshake
         sock.recv(packet_len - 2)
+
+    def recv_s(self, struct_def, what):
+        s = struct.Struct(struct_def)
+        data = self.request.recv(s.size)
+        msg = '{}: received only {}/{} bytes'.format(what, len(data), s.size)
+        self.expect(len(data) == s.size, msg)
+        return s.unpack(data)
 
 class PacemakerServer(socketserver.TCPServer):
     def __init__(self, args):
