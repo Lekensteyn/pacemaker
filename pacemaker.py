@@ -105,6 +105,8 @@ class RequestHandler(socketserver.BaseRequestHandler):
         # Read TLS record header
         content_type, ver, rec_len = self.recv_s('>BHH', 'TLS record')
         self.expect(content_type == 22, 'Expected Handshake type')
+        # Session-ID length (1 byte) starts at offset 38
+        self.expect(rec_len >= 39, 'Illegal handshake packet')
 
         # Read handshake
         hnd = self.request.recv(rec_len)
@@ -115,6 +117,8 @@ class RequestHandler(socketserver.BaseRequestHandler):
         off = 6 + 32
         sid_len, = struct.unpack('B', hnd[off:off+1])
         off += 1 + sid_len # Skip length and SID
+        # Enough room for ciphers?
+        self.expect(rec_len - off >= 4, 'Illegal handshake packet (2)')
         ciphers_len = struct.unpack("<H", hnd[off:off+2])
         off += 2
         # The first cipher is fine...
