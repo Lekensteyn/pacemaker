@@ -90,8 +90,8 @@ In theory, the heartbeats can take twenty seconds now, but in practice you will
 get responses much faster.
 
 ## Tested clients
-The following clients have been tested against 1.0.1f and leaked memory before
-the handshake:
+The following clients have been tested against OpenSSL 1.0.1f on Arch Linux and
+leaked memory before the handshake:
 
  - MariaDB 5.5.36
  - wget 1.15 (leaks memory of earlier connections and own state)
