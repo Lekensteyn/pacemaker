@@ -75,6 +75,29 @@ An example where more "interesting" memory gets leaked using
     ffe0: 34 36 2d 53 45 2f 2f 00 53 45 4e 5f 38 35 30 32  46-SE//.SEN_8502
     fff0: 30 30 5f 42 2f 2f 00 00 00 00 00 00 00 00 00     00_B//.........
 
+## How does it work?
+[TLS heartbeats][2] can be sent by either side of a TLS connection. After the
+handshake completes, these heartbeats are encrypted. But apparently OpenSSL
+allows heartbeat messages before the handshake is completed. These heartbeats
+(on top of the record layer) are not encrypted at all!
+
+This makes it very easy to exploit the bug on clients:
+
+ 1. Wait for a ClientHello containing a TLS version and cipher suite.
+ 2. Send a ServerHello containing the same TLS version and cipher suite (to
+    prevent handshake failure).
+ 3. At this point, the server can send as many heartbeat requests as it likes.
+
+Note that there is *no* need for any certificates as the heartbeats are accepted
+before any certificate or encryption keys are exchanged. As the length of the
+heartbeat requests are unchecked, [up to 64 kiB][3] memory can be read from
+client memory.
+
+pacemaker performs the above steps and assumes a client not to be vulnerable if
+step 3 results in data other than Alerts. If needed for some protocols (SMTP
+with STARTTLS for example), additional data is exchanged before the TLS
+handshake starts.
+
 ## Advanced usage
 Run `./pacemaker.py -h` for more options. The most important options are
 probably `-t` (`--timeout`) and `-x` (`--count`). The default timeout is 3
@@ -115,3 +138,5 @@ At the moment, the script is only compatible with Python 2.
 
   [0]: http://heartbleed.com/
   [1]: https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2014-0160
+  [2]: https://tools.ietf.org/html/rfc6520#section-3
+  [3]: http://blog.existentialize.com/diagnosis-of-the-openssl-heartbleed-bug.html
