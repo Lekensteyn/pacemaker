@@ -95,11 +95,12 @@ leaked memory before the handshake:
 
  - MariaDB 5.5.36
  - wget 1.15 (leaks memory of earlier connections and own state)
- - curl 7.36.0 (https, ftp with --ftp-ssl)
+ - curl 7.36.0 (https, FTP/IMAP/POP3/SMTP with --ftp-ssl)
  - git 1.9.1 (tested clone / push, leaks not much)
  - nginx 1.4.7 (in proxy mode, leaks memory of previous requests)
  - links 2.8 (leaks contents of previous visits!)
  - KDE 4.12.4 (kioclient, Dolphin, tested https and ftps with kde4-ftps-kio)
+ - Exim 4.82 (outgoing SMTP)
 
 links is a great example that demonstrates the effect of this bug on clients. It
 is a text-based browser that leaks details including headers (cookies,
