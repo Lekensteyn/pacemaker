@@ -108,6 +108,10 @@ class RequestHandler(socketserver.BaseRequestHandler):
                     break
         except (Failure, OSError, socket.timeout) as e:
             print('Unable to check for vulnerability: ' + str(e))
+        except KeyboardInterrupt:
+            # Don't just abort this client, stop the server too
+            print('Shutting down...')
+            self.server.kill()
 
         print('')
 
@@ -240,6 +244,14 @@ class PacemakerServer(socketserver.TCPServer):
         socketserver.TCPServer.__init__(self, server_address, RequestHandler)
         self.args = args
 
+    def serve_forever(self):
+        self.stopped = False
+        while not self.stopped:
+            self.handle_request()
+
+    def kill(self):
+        self.stopped = True
+
 def serve(args):
     print('Listening on {}:{} for {} clients'
         .format(args.listen, args.port, args.client))
@@ -248,4 +260,7 @@ def serve(args):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    serve(args)
+    try:
+        serve(args)
+    except KeyboardInterrupt:
+        pass
