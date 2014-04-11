@@ -129,6 +129,10 @@ links is a great example that demonstrates the effect of this bug on clients. It
 is a text-based browser that leaks details including headers (cookies,
 authorization tokens) and page contents.
 
+## License
+pacemaker is licensed under the MIT license. See the LICENSE file for more
+details.
+
 # ssltest.py
 This repository also contains a working version that targets servers. ssltest.py
 was created by Jared Stafford (<jspenguin@jspenguin.org>), all due credits are

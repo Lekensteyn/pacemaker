@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # Exploitation of CVE-2014-0160 Heartbeat for the client
 # Author: Peter Wu <peter@lekensteyn.nl>
+# Licensed under the MIT license <http://opensource.org/licenses/MIT>.
 
 try:
     import socketserver
