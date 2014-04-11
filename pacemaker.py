@@ -21,7 +21,7 @@ parser.add_argument('-p', '--port', type=int, default=4433,
         help='TCP port to listen on (default %(default)d)')
 # Note: FTP is (Explicit FTPS). Use TLS for Implicit FTPS
 parser.add_argument('-c', '--client', default='tls',
-        choices=['tls', 'mysql', 'ftp', 'smtp'],
+        choices=['tls', 'mysql', 'ftp', 'smtp', 'imap'],
         help='Target client type (default %(default)s)')
 parser.add_argument('-t', '--timeout', type=int, default=3,
         help='Timeout in seconds to wait for a Heartbeat (default %(default)d)')
@@ -240,6 +240,22 @@ class RequestHandler(socketserver.BaseRequestHandler):
             data = sock.recv(256).decode('ascii').upper()
             self.expect(data[:len(exp)] == exp, \
                 'Expected ' + exp + ', got ' + data)
+            sock.sendall(resp.encode('ascii'))
+
+    def prepare_imap(self, sock):
+        talk = [
+            ('CAPABILITY', '* CAPABILITY STARTTLS\r\n'),
+            ('STARTTLS', '')
+        ]
+        sock.sendall('* OK\r\n'.encode('ascii'))
+
+        for exp, resp in talk:
+            data = sock.recv(256).decode('ascii').upper()
+            self.expect(' ' in data, 'IMAP protocol violation, got ' + data)
+            tag, data = data.split(' ', 2)
+            self.expect(data[:len(exp)] == exp, \
+                'Expected ' + exp + ', got ' + data)
+            resp += tag + ' OK\r\n'
             sock.sendall(resp.encode('ascii'))
 
     def recv_s(self, struct_def, what):
