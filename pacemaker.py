@@ -181,10 +181,6 @@ def read_hb_response(sock, timeout):
 
         timeout = end_time - time.time()
 
-    if memory:
-        print('Client returned {0} ({0:#x}) bytes'.format(len(memory)))
-        hexdump(memory)
-
     # Check for Alert (sent by NSS)
     if alert:
         lvl, desc = alert
@@ -277,11 +273,15 @@ class RequestHandler(socketserver.BaseRequestHandler):
 
         # (3) Buggy OpenSSL will throw 0xffff bytes, fixed ones stay silent
         memory = read_hb_response(self.request, self.args.timeout)
+
         # If memory is None, then it is not vulnerable for sure. Otherwise, if
         # empty, then it *may* be invulnerable
         if memory is not None and not memory:
             print("Possibly not vulnerable")
             return False
+        elif memory:
+            print('Client returned {0} ({0:#x}) bytes'.format(len(memory)))
+            hexdump(memory)
 
         return True
 
