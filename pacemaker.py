@@ -90,18 +90,21 @@ class RecordParser(object):
     def feed(self, data):
         self.buffer += data
         self.buffer_len += len(data)
+
+    def get_header(self):
         if self.record_hdr is None and self.buffer_len >= self.record_s.size:
-                self.record_hdr = self.record_s.unpack_from(self.buffer)
+            self.record_hdr = self.record_s.unpack_from(self.buffer)
+        return self.record_hdr
 
     def bytes_needed(self):
         '''Zero or lower indicates that a fragment is available'''
         expected_len = self.record_s.size
-        if self.record_hdr is not None:
+        if self.get_header():
             expected_len += self.record_hdr[2]
         return expected_len - self.buffer_len
 
     def get_record(self, partial=False):
-        if self.buffer_len < self.record_s.size:
+        if not self.get_header():
             return None
 
         record_type, sslver, fragment_len = self.record_hdr
