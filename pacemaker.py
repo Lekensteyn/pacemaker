@@ -57,7 +57,12 @@ def make_heartbeat(sslver):
     data = '18 ' + sslver
     data += ' 00 03'    # Length
     data += ' 01'       # Type: Request
-    data += ' ff ff'    # Payload Length
+    # OpenSSL responds with records of length 0x4000. It starts with 3 bytes
+    # (length, response type) and ends with a 16 byte padding. If the payload is
+    # too small, OpenSSL buffers it and this will cause issues with repeated
+    # heartbeat requests. Therefore request a payload that fits exactly in four
+    # records (0x4000 * 4 - 3 - 16 = 0xffed).
+    data += ' ff ed'    # Payload Length
     return bytearray.fromhex(data.replace('\n', ''))
 
 def hexdump(data):
@@ -148,13 +153,11 @@ def read_record(sock, timeout, partial=False):
 def read_hb_response(sock, timeout):
     end_time = time.time() + timeout
     memory = bytearray()
-    hb_len = 0xffff
+    hb_len = 1      # Will be initialized after first heartbeat
     read_error = None
     alert = None
 
-    # OpenSSL actually returns four fragments of size 0x4000 each. The first
-    # three bytes of the first fragment is type + len, so skip that.
-    while 3 + len(memory) < hb_len and timeout > 0:
+    while len(memory) < hb_len and timeout > 0:
         record, read_error = read_record(sock, timeout, partial=True)
         if not record:
             break
@@ -169,7 +172,7 @@ def read_hb_response(sock, timeout):
                     raise Failure('Response too small')
                 # Sanity check, should not happen with OpenSSL
                 if fragment[0] != 2:
-                    raise Failure('Expected Heartbeat response')
+                    raise Failure('Expected Heartbeat in first response')
 
                 hb_len, = struct.unpack_from('!H', fragment, 1)
                 memory += fragment[2:]
