@@ -71,7 +71,7 @@ def hexdump(data):
 
     for i in range(0, len(data), 16):
         line = data[i:i+16]
-        if line == allzeroes:
+        if line == allzeroes[:len(line)]:
             zerolines += 1
             if zerolines == 2:
                 print("*")
