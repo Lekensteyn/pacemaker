@@ -131,7 +131,7 @@ def read_record(sock, timeout, partial=False):
         rl, _, _ = select.select([sock], [], [], timeout)
 
         if not rl:
-            e = socket.timeout('Timeout while waiting for bytes')
+            error = socket.timeout('Timeout while waiting for bytes')
             break
 
         try:
