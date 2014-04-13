@@ -339,11 +339,12 @@ class RequestHandler(socketserver.BaseRequestHandler):
         ])
 
     def prepare_imap(self, sock):
+        caps = 'CAPABILITY IMAP4rev1 STARTTLS'
         talk = [
-            ('CAPABILITY', '* CAPABILITY STARTTLS\r\n'),
+            ('CAPABILITY', '* ' + caps + '\r\n'),
             ('STARTTLS', '')
         ]
-        sock.sendall('* OK\r\n'.encode('ascii'))
+        sock.sendall(('* OK [' + caps + '] ready\r\n').encode('ascii'))
 
         for exp, resp in talk:
             data = sock.recv(256).decode('ascii').upper()
