@@ -135,7 +135,6 @@ details.
 
 # heartbleed.py
 This is an implementation that uses pacemaker for crafting packets.
-Protocols other than TLS (STMP/FTP/...) is not yet supported.
 It has the caveat that repeated requests need to establish a new connection for
 every attempt because the server immediately resets the connection after the
 first heartbeat response.
@@ -146,8 +145,15 @@ without connection failures.
 
 heartbleed.py is part of pacemaker, so falls under the same license terms.
 
-Tested against `openssl s_client` and nginx 1.4.7 with OpenSSL 1.0.1f under Arch
-Linux.
+## Tested servers
+The following servers have been tested against OpenSSL 1.0.1f on Arch Linux
+(unless stated otherwise):
+
+ - `openssl s_server` (HTTPS)
+ - nginx 1.4.7 (HTTPS)
+ - Dovecot 2.2.11 (IMAP / POP3)
+ - proftpd 1.3.4a-5+deb7u1 (explicit FTP)
+ - Exim 4.82 (SMTP)
 
 # ssltest.py
 This repository also contains a working version that targets servers. ssltest.py
