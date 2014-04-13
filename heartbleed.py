@@ -131,8 +131,8 @@ def test_server(host, port, timeout, prepare_func=None, family=socket.AF_INET):
     try:
         try:
             sock = socket.socket(family=family)
-            sock.connect((host, port))
             sock.settimeout(timeout) # For writes, reads are already guarded
+            sock.connect((host, port))
         except socket.error as e:
             print('Unable to connect to {}:{}: {}'.format(host, port, e))
             return False
