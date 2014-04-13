@@ -62,8 +62,9 @@ def make_clienthello(sslver='03 01'):
     record_data += hs_data
     return record_data
 
-def skip_server_handshake(sock, timeout):
+def skip_server_handshake(sock, timeout, sslver):
     end_time = time.time() + timeout
+    hs_struct = struct.Struct('!BBH')
     for i in range(0, 5):
         record, error = read_record(sock, timeout)
         timeout = end_time - time.time()
@@ -71,16 +72,25 @@ def skip_server_handshake(sock, timeout):
             raise Failure('Unexpected server handshake! ' + str(error))
 
         content_type, _, fragment = record
-        # Server handshake is complete after ServerHelloDone
-        if content_type == 22 and len(fragment) == 4 and fragment[0] == 14:
-            break
+        if content_type != 22:
+            raise Failure('Expected handshake type, got ' + str(content_type))
+
+        off = 0
+        while off + hs_struct.size <= len(fragment):
+            hs_type, len_high, len_low = hs_struct.unpack_from(fragment, off)
+            if off + len_low > len(fragment):
+                raise Failure('Illegal handshake length!')
+            # Server handshake is complete after ServerHelloDone
+            if hs_type == 14:
+                return
+            off += hs_struct.size + len_low
 
 def handle_ssl(sock, sslver='03 01'):
     # ClientHello
     sock.sendall(make_clienthello(sslver))
 
     # Skip ServerHello, Certificate, ServerKeyExchange, ServerHelloDone
-    skip_server_handshake(sock, args.timeout)
+    skip_server_handshake(sock, args.timeout, sslver)
 
     # Are you alive? Heartbeat please!
     try:
