@@ -85,14 +85,18 @@ def skip_server_handshake(sock, timeout, sslver):
             raise Failure('Expected handshake type, got ' + str(content_type))
 
         off = 0
+        # Records may consist of multiple handshake messages
         while off + hs_struct.size <= len(fragment):
             hs_type, len_high, len_low = hs_struct.unpack_from(fragment, off)
             if off + len_low > len(fragment):
                 raise Failure('Illegal handshake length!')
+            off += hs_struct.size + len_low
+
             # Server handshake is complete after ServerHelloDone
             if hs_type == 14:
-                return
-            off += hs_struct.size + len_low
+                return # Ready to check for vulnerability
+
+    raise Failure('Too many handshake messages')
 
 def handle_ssl(sock, sslver='03 01'):
     # ClientHello
