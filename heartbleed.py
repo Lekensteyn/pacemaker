@@ -19,6 +19,9 @@ parser.add_argument('-6', '--ipv6', action='store_true',
         help='Enable IPv6 addresses (implied by IPv6 listen addr. such as ::)')
 parser.add_argument('-p', '--port', type=int, default=443,
         help='TCP port to connect to (default %(default)d)')
+parser.add_argument('-s', '--service', default='tls',
+        choices=['tls', 'smtp'],
+        help='Target service type (default %(default)s)')
 parser.add_argument('-t', '--timeout', type=int, default=3,
         help='Timeout in seconds to wait for a Heartbeat (default %(default)d)')
 parser.add_argument('-x', '--count', type=int, default=1,
@@ -101,7 +104,7 @@ def handle_ssl(sock, sslver='03 01'):
     # "Maybe" vulnerable
     return True
 
-def test_server(host, port, timeout, family=socket.AF_INET):
+def test_server(host, port, timeout, prepare_func=None, family=socket.AF_INET):
     try:
         try:
             sock = socket.socket(family=family)
@@ -111,6 +114,10 @@ def test_server(host, port, timeout, family=socket.AF_INET):
             print('Unable to connect to {}:{}: {}'.format(host, port, e))
             return False
 
+        if prepare_func is not None:
+            prepare_func(sock)
+            print('Pre-TLS stage completed, continuing with handshake')
+
         return handle_ssl(sock)
     except (Failure, socket.error) as e:
         print('Unable to check for vulnerability: ' + str(e))
@@ -119,9 +126,64 @@ def test_server(host, port, timeout, family=socket.AF_INET):
         if sock:
             sock.close()
 
+class Linereader(object):
+    def __init__(self, sock):
+        self.buffer = bytearray()
+        self.sock = sock
+
+    def readline(self):
+        if not b'\n' in self.buffer:
+            self.buffer += self.sock.recv(4096)
+        nlpos = self.buffer.index(b'\n')
+        if nlpos >= 0:
+            line = self.buffer[:nlpos+1]
+            del self.buffer[:nlpos+1]
+            return line.decode('ascii')
+        return ''
+
+class Services(object):
+    @classmethod
+    def get_prepare(cls, service):
+        name = 'prepare_' + service
+        if hasattr(cls, name):
+            return getattr(cls, name)
+        return None
+
+    @staticmethod
+    def readline_expect(reader, expected, what=None):
+        line = reader.readline()
+        if not line.upper().startswith(expected):
+            if what is None:
+                what = expected
+            raise Failure('Expected ' + expected + ', got ' + line)
+        return line
+
+    @classmethod
+    def prepare_smtp(cls, sock):
+        reader = Linereader(sock)
+        tls = False
+
+        # Server greeting
+        cls.readline_expect(reader, '220 ', 'SMTP banner')
+
+        sock.sendall(b'EHLO pacemaker\r\n')
+        # Assume no more than 16 extensions
+        for i in range(0, 16):
+            line = cls.readline_expect(reader, '250', 'extension')
+            if line[4:].upper().startswith('STARTTLS'):
+                tls = True
+            if line[3] == ' ':
+                break
+
+        if not tls:
+            raise Failure('STARTTLS not supported')
+
+        sock.sendall(b'STARTTLS\r\n')
+        cls.readline_expect(reader, '220 ', 'STARTTLS acknowledgement')
 
 def main(args):
     family = socket.AF_INET6 if args.ipv6 else socket.AF_INET
+    prep_func = Services.get_prepare(args.service)
 
     # OpenSSL expects a client key exchange after its ServerHello.  After the
     # first heartbeat, it will reset the connection. That's why we cannot just
@@ -130,7 +192,8 @@ def main(args):
     # approach. For now just keep re-connecting, it will flood server logs with
     # handshake failures though.
     for i in range(0, args.count):
-        if not test_server(args.host, args.port, args.timeout, family=family):
+        if not test_server(args.host, args.port, args.timeout, \
+            prepare_func=prep_func, family=family):
             break
 
 if __name__ == '__main__':
