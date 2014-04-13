@@ -98,7 +98,7 @@ class RecordParser(object):
 
     def get_header(self):
         if self.record_hdr is None and self.buffer_len >= self.record_s.size:
-            self.record_hdr = self.record_s.unpack_from(self.buffer)
+            self.record_hdr = self.record_s.unpack_from(bytes(self.buffer))
         return self.record_hdr
 
     def bytes_needed(self):
@@ -124,7 +124,7 @@ class RecordParser(object):
         self.buffer_len -= record_len
         self.record_hdr = None
 
-        return record_type, sslver, fragment
+        return record_type, sslver, bytes(fragment)
 
 def read_record(sock, timeout, partial=False):
     rparser = RecordParser()
@@ -171,7 +171,7 @@ def read_hb_response(sock, timeout):
                         break
                     raise Failure('Response too small')
                 # Sanity check, should not happen with OpenSSL
-                if fragment[0] != 2:
+                if fragment[0:1] != b'\2':
                     raise Failure('Expected Heartbeat in first response')
 
                 hb_len, = struct.unpack_from('!H', fragment, 1)
@@ -189,7 +189,7 @@ def read_hb_response(sock, timeout):
 
     # Check for Alert (sent by NSS)
     if alert:
-        lvl, desc = alert
+        lvl, desc = alert[0:1], alert[1:2]
         lvl = 'Warning' if lvl == 1 else 'Fatal'
         print('Got Alert, level={}, description={}'.format(lvl, desc))
         if not memory:
