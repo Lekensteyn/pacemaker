@@ -21,7 +21,7 @@ parser.add_argument('-p', '--port', type=int, default=443,
         help='TCP port to connect to (default %(default)d)')
 # Note: FTP is (Explicit FTPS). Use TLS for Implicit FTPS
 parser.add_argument('-s', '--service', default='tls',
-        choices=['tls', 'ftp', 'smtp'],
+        choices=['tls', 'ftp', 'smtp', 'imap'],
         help='Target service type (default %(default)s)')
 parser.add_argument('-t', '--timeout', type=int, default=3,
         help='Timeout in seconds to wait for a Heartbeat (default %(default)d)')
@@ -163,7 +163,7 @@ class Services(object):
     @staticmethod
     def readline_expect(reader, expected, what=None):
         line = reader.readline()
-        if not line.upper().startswith(expected):
+        if not line.upper().startswith(expected.upper()):
             if what is None:
                 what = expected
             raise Failure('Expected ' + expected + ', got ' + line)
@@ -212,6 +212,15 @@ class Services(object):
 
         sock.sendall(b'STARTTLS\r\n')
         cls.readline_expect(reader, '220 ', 'STARTTLS acknowledgement')
+
+    @classmethod
+    def prepare_imap(cls, sock):
+        reader = Linereader(sock)
+        # actually, the greeting contains PREAUTH or OK
+        cls.readline_expect(reader, '* ', 'IMAP banner')
+
+        sock.sendall(b'a001 STARTTLS\r\n')
+        cls.readline_expect(reader, 'a001 OK', 'STARTTLS acknowledgement')
 
 def main(args):
     family = socket.AF_INET6 if args.ipv6 else socket.AF_INET
