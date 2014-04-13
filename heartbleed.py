@@ -21,7 +21,7 @@ parser.add_argument('-p', '--port', type=int, default=443,
         help='TCP port to connect to (default %(default)d)')
 # Note: FTP is (Explicit FTPS). Use TLS for Implicit FTPS
 parser.add_argument('-s', '--service', default='tls',
-        choices=['tls', 'ftp', 'smtp', 'imap'],
+        choices=['tls', 'ftp', 'smtp', 'imap', 'pop3'],
         help='Target service type (default %(default)s)')
 parser.add_argument('-t', '--timeout', type=int, default=3,
         help='Timeout in seconds to wait for a Heartbeat (default %(default)d)')
@@ -221,6 +221,13 @@ class Services(object):
 
         sock.sendall(b'a001 STARTTLS\r\n')
         cls.readline_expect(reader, 'a001 OK', 'STARTTLS acknowledgement')
+
+    @classmethod
+    def prepare_pop3(cls, sock):
+        reader = Linereader(sock)
+        cls.readline_expect(reader, '+OK')
+        sock.sendall(b'STLS\r\n')
+        cls.readline_expect(reader, '+OK')
 
 def main(args):
     family = socket.AF_INET6 if args.ipv6 else socket.AF_INET
