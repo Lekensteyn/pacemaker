@@ -178,7 +178,7 @@ def read_hb_response(sock, timeout):
                 memory += fragment[2:]
             else: # Heartbeat continuation
                 memory += fragment
-        elif record_type == 7 and len(fragment) == 2: # Alert
+        elif record_type == 21 and len(fragment) == 2: # Alert
             alert = fragment
             break
         else:
@@ -189,7 +189,7 @@ def read_hb_response(sock, timeout):
 
     # Check for Alert (sent by NSS)
     if alert:
-        lvl, desc = alert[0:1], alert[1:2]
+        lvl, desc = alert[0:1], ord(alert[1:2])
         lvl = 'Warning' if lvl == 1 else 'Fatal'
         print('Got Alert, level={}, description={}'.format(lvl, desc))
         if not memory:
