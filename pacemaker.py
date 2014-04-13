@@ -224,13 +224,13 @@ class RequestHandler(socketserver.BaseRequestHandler):
                 try:
                     if not self.do_evil():
                         break
-                except OSError as e:
+                except socket.error as e:
                     if i == 0: # First heartbeat?
                         print('Unable to send first heartbeat! ' + str(e))
                     else:
                         print('Unable to send more heartbeats, ' + str(e))
                     break
-        except (Failure, OSError, socket.timeout) as e:
+        except (Failure, socket.error, socket.timeout) as e:
             print('Unable to check for vulnerability: ' + str(e))
         except KeyboardInterrupt:
             # Don't just abort this client, stop the server too
