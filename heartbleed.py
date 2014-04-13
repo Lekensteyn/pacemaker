@@ -17,8 +17,8 @@ parser = ArgumentParser(description='Test servers for Heartbleed (CVE-2014-0160)
 parser.add_argument('host', help='Hostname to connect to')
 parser.add_argument('-6', '--ipv6', action='store_true',
         help='Enable IPv6 addresses (implied by IPv6 listen addr. such as ::)')
-parser.add_argument('-p', '--port', type=int, default=443,
-        help='TCP port to connect to (default %(default)d)')
+parser.add_argument('-p', '--port', type=int, default=None,
+        help='TCP port to connect to (default depends on service)')
 # Note: FTP is (Explicit FTPS). Use TLS for Implicit FTPS
 parser.add_argument('-s', '--service', default='tls',
         choices=['tls', 'ftp', 'smtp', 'imap', 'pop3'],
@@ -27,6 +27,14 @@ parser.add_argument('-t', '--timeout', type=int, default=3,
         help='Timeout in seconds to wait for a Heartbeat (default %(default)d)')
 parser.add_argument('-x', '--count', type=int, default=1,
         help='Number of Hearbeats requests to be sent (default %(default)d)')
+
+default_ports = {
+    'tls': 443,
+    'ftp': 21,
+    'smtp': 25, # tcp port 587 is used for submission
+    'imap': 143,
+    'pop3': 110,
+}
 
 def make_clienthello(sslver='03 01'):
     # openssl ciphers -V 'HIGH:!MD5:!PSK:!DSS:!ECDSA:!aNULL:!SRP' |
@@ -246,6 +254,8 @@ def main(args):
 
 if __name__ == '__main__':
     args = parser.parse_args()
+    if args.port is None:
+        args.port = default_ports[args.service]
     try:
         main(args)
     except KeyboardInterrupt:
