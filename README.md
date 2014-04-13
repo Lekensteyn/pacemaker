@@ -133,6 +133,22 @@ authorization tokens) and page contents.
 pacemaker is licensed under the MIT license. See the LICENSE file for more
 details.
 
+# heartbleed.py
+This is an implementation that uses pacemaker for crafting packets.
+Protocols other than TLS (STMP/FTP/...) is not yet supported.
+It has the caveat that repeated requests need to establish a new connection for
+every attempt because the server immediately resets the connection after the
+first heartbeat response.
+
+The caveat is a limitation resulting from the taken approach, if the handshake
+would be completed by the client too, then many encrypted handshakes can be sent
+without connection failures.
+
+heartbleed.py is part of pacemaker, so falls under the same license terms.
+
+Tested against `openssl s_client` and nginx 1.4.7 with OpenSSL 1.0.1f under Arch
+Linux.
+
 # ssltest.py
 This repository also contains a working version that targets servers. ssltest.py
 was created by Jared Stafford (<jspenguin@jspenguin.org>), all due credits are
