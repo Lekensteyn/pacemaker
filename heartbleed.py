@@ -19,8 +19,9 @@ parser.add_argument('-6', '--ipv6', action='store_true',
         help='Enable IPv6 addresses (implied by IPv6 listen addr. such as ::)')
 parser.add_argument('-p', '--port', type=int, default=443,
         help='TCP port to connect to (default %(default)d)')
+# Note: FTP is (Explicit FTPS). Use TLS for Implicit FTPS
 parser.add_argument('-s', '--service', default='tls',
-        choices=['tls', 'smtp'],
+        choices=['tls', 'ftp', 'smtp'],
         help='Target service type (default %(default)s)')
 parser.add_argument('-t', '--timeout', type=int, default=3,
         help='Timeout in seconds to wait for a Heartbeat (default %(default)d)')
@@ -167,6 +168,27 @@ class Services(object):
                 what = expected
             raise Failure('Expected ' + expected + ', got ' + line)
         return line
+
+    @classmethod
+    def prepare_ftp(cls, sock):
+        reader = Linereader(sock)
+        tls = False
+        cls.readline_expect(reader, '220 ', 'FTP greeting')
+
+        sock.sendall(b'FEAT\r\n')
+        cls.readline_expect(reader, '211-', 'FTP features')
+        for i in range(0, 64):
+            line = reader.readline().upper()
+            if line.startswith(' AUTH TLS'):
+                tls = True
+            if line.startswith('211'):
+                break
+
+        if not tls:
+            raise Failure('AUTH TLS not supported')
+
+        sock.sendall(b'AUTH TLS\r\n')
+        cls.readline_expect(reader, '234 ', 'AUTH TLS ack')
 
     @classmethod
     def prepare_smtp(cls, sock):
