@@ -218,7 +218,7 @@ def read_hb_response(sock, timeout):
                     raise Failure('Expected Heartbeat in first response')
 
                 hb_len, = struct.unpack_from(b'!H', fragment, 1)
-                memory += fragment[2:]
+                memory += fragment[3:]
             else: # Heartbeat continuation
                 memory += fragment
         elif record_type == 21 and len(fragment) == 2: # Alert
@@ -229,6 +229,10 @@ def read_hb_response(sock, timeout):
             raise Failure('Unexpected record type {0}'.format(record_type))
 
         timeout = end_time - time.time()
+
+    # Drop heartbeat padding that is included in buffer
+    if len(memory) - 16 == hb_len:
+        del memory[hb_len:]
 
     # Check for Alert (sent by NSS)
     if alert:
