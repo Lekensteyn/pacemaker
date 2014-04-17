@@ -98,7 +98,7 @@ def skip_server_handshake(sock, timeout, sslver):
 
     raise Failure('Too many handshake messages')
 
-def handle_ssl(sock, sslver='03 01'):
+def handle_ssl(sock, args, sslver='03 01'):
     # ClientHello
     sock.sendall(make_clienthello(sslver))
 
@@ -127,14 +127,14 @@ def handle_ssl(sock, sslver='03 01'):
     # "Maybe" vulnerable
     return True
 
-def test_server(host, port, timeout, prepare_func=None, family=socket.AF_INET):
+def test_server(args, prepare_func=None, family=socket.AF_INET):
     try:
         try:
             sock = socket.socket(family=family)
-            sock.settimeout(timeout) # For writes, reads are already guarded
-            sock.connect((host, port))
+            sock.settimeout(args.timeout) # For writes, reads are already guarded
+            sock.connect((args.host, args.port))
         except socket.error as e:
-            print('Unable to connect to {}:{}: {}'.format(host, port, e))
+            print('Unable to connect to {}:{}: {}'.format(args.host, args.port, e))
             return False
 
         remote_addr, remote_port = sock.getpeername()[:2]
@@ -144,7 +144,7 @@ def test_server(host, port, timeout, prepare_func=None, family=socket.AF_INET):
             prepare_func(sock)
             print('Pre-TLS stage completed, continuing with handshake')
 
-        return handle_ssl(sock)
+        return handle_ssl(sock, args)
     except (Failure, socket.error) as e:
         print('Unable to check for vulnerability: ' + str(e))
         return False
@@ -255,8 +255,7 @@ def main(args):
     # approach. For now just keep re-connecting, it will flood server logs with
     # handshake failures though.
     for i in range(0, args.count):
-        if not test_server(args.host, args.port, args.timeout, \
-            prepare_func=prep_func, family=family):
+        if not test_server(args, prepare_func=prep_func, family=family):
             break
 
 if __name__ == '__main__':
