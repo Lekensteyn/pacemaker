@@ -26,7 +26,7 @@ parser.add_argument('-s', '--service', default='tls',
 parser.add_argument('-t', '--timeout', type=int, default=3,
         help='Timeout in seconds to wait for a Heartbeat (default %(default)d)')
 parser.add_argument('-x', '--count', type=int, default=1,
-        help='Number of Hearbeats requests to be sent (default %(default)d)')
+        help='Number of Heartbeats requests to be sent (default %(default)d)')
 
 default_ports = {
     'tls': 443,
