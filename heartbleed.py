@@ -137,6 +137,9 @@ def test_server(host, port, timeout, prepare_func=None, family=socket.AF_INET):
             print('Unable to connect to {}:{}: {}'.format(host, port, e))
             return False
 
+        remote_addr, remote_port = sock.getpeername()[:2]
+        print('Connected to: {}:{}'.format(remote_addr, remote_port))
+
         if prepare_func is not None:
             prepare_func(sock)
             print('Pre-TLS stage completed, continuing with handshake')
