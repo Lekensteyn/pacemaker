@@ -77,7 +77,7 @@ parser.add_argument('-n', '--payload-length', type=payload_len, default=0xffed,
 def make_hello(sslver, cipher):
     # Record
     data = '16 ' + sslver
-    data += ' 00 31' # Record ength
+    data += ' 00 31' # Record length
     # Handshake
     data += ' 02 00'
     data += ' 00 2d' # Handshake length

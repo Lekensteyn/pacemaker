@@ -118,7 +118,7 @@ def handle_ssl(sock, args, sslver='03 01'):
     # Are you alive? Heartbeat please!
     try:
         sock.sendall(make_heartbeat(sslver, args.payload_len))
-    except socker.error as e:
+    except socket.error as e:
         print('Unable to send heartbeat! ' + str(e))
         return False
 
